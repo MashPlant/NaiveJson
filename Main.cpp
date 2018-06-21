@@ -12,7 +12,7 @@ int main()
     "workbench.startupEditor": "newUntitledFile",
     "C_Cpp.default.cppStandard": "c++17",
     "workbench.iconTheme": "material-icon-theme",
-    "workbench.colorTheme": "Dark+ Material",
+    "workbench.colorTheme": [0,1,2,3.5]
 }
     )";
     cout << json;
@@ -24,7 +24,10 @@ int main()
         cout << obj["workbench.startupEditor"].get_str() << endl;
         cout << obj["C_Cpp.default.cppStandard"].get_str() << endl;
         cout << obj["workbench.iconTheme"].get_str() << endl;
-        cout << obj["workbench.colorTheme"].get_str() << endl;
+        cout << obj["workbench.colorTheme"].get_arr()[0].get_f64() << endl;
+        cout << obj["workbench.colorTheme"].get_arr()[1].get_i64() << endl;
+        cout << obj["workbench.colorTheme"].get_arr()[2].get_i64() << endl;
+        cout << obj["workbench.colorTheme"].get_arr()[3].get_f64() << endl;
     }
     catch (std::exception &ex)
     {

@@ -7,9 +7,8 @@
 
 namespace mp
 {
-namespace detail
-{
-struct IsValid
+
+constexpr inline struct
 {
     template <typename F, typename... Args,
               typename = decltype(std::declval<F>()(std::declval<Args>()...))>
@@ -17,16 +16,14 @@ struct IsValid
     template <typename F, typename... Args>
     static constexpr auto impl(float) { return std::false_type{}; }
     template <typename F>
-    struct checker_type
+    struct Checker
     {
         template <typename... Args>
         constexpr auto operator()(Args &&... args) const { return impl<F, Args...>(0); }
     };
     template <typename F>
-    constexpr auto operator()(F &&) const { return checker_type<F>{}; }
-};
-} // namespace detail
-constexpr inline detail::IsValid is_valid;
+    constexpr auto operator()(F &&) const { return Checker<F>{}; }
+} is_valid;
 
 template <typename... Ts>
 struct Tuple : std::tuple<Ts...>
@@ -60,13 +57,6 @@ struct Tuple : std::tuple<Ts...>
     {
         _for_each_impl(pred, std::make_index_sequence<sizeof...(Ts)>());
     }
-};
-
-template <int First, int Second>
-struct Pair
-{
-    const static int first = First;
-    const static int second = Second;
 };
 
 template <typename... Ts>

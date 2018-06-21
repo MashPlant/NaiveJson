@@ -54,13 +54,14 @@ struct Stream
             throw StreamException(format("cur is %c, expect %c", *cur, ch));
         ++cur;
     }
-    bool try_match(char ch)
+    double get_number() 
     {
-#if defined(_MP_DEBUG)
-        if (cur >= end)
-            throw StreamException("Stream::try_match: out of range");
-#endif // _MP_DEBUG
-        return *cur++ == ch;
+        char *tmp;
+        double ret = strtod(cur, &tmp);
+        if (cur == tmp)
+            throw StreamException("not a valid number");
+        cur = tmp;
+        return ret;
     }
 };
 } // namespace mp

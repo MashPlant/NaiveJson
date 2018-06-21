@@ -54,14 +54,8 @@ struct Value
             return cap;
         }
         Array() = default; // won't be properly constructed
-        Array(size_type size)
-        {
-            this->size = size;
-            capacity = size_to_cap(size);
-            content = (Value *)malloc(sizeof(Value) * capacity);
-            for (size_type i = 0; i < size; ++i)
-                new (content + i) Value();
-        }
+        explicit Array(size_type capacity)
+            : size(0), capacity(capacity), content((Value *)malloc(sizeof(Value) * capacity)) {}
         Array &push_back(Value &&val)
         {
             if (size >= capacity)
@@ -73,11 +67,8 @@ struct Value
         const Value &operator[](size_type index) const { return content[index]; }
     };
     union {
-        int32_t i32;
-        uint32_t u32;
-        float f32;
+        bool bo;
         int64_t i64;
-        uint64_t u64;
         double f64;
         String str;
         Array arr;
@@ -86,31 +77,22 @@ struct Value
     enum
     {
         null_flag,
-        i32_flag,
-        u32_flag,
-        f32_flag,
+        bool_flag,
         i64_flag,
-        u64_flag,
         f64_flag,
         str_flag,
         arr_flag,
         obj_flag
     } type = null_flag;
-    decltype(auto) get_i32() { return (data.i32); }
-    decltype(auto) get_u32() { return (data.u32); }
-    decltype(auto) get_f32() { return (data.f32); }
+    decltype(auto) get_bool() { return (data.bo); }
     decltype(auto) get_i64() { return (data.i64); }
-    decltype(auto) get_u64() { return (data.u64); }
     decltype(auto) get_f64() { return (data.f64); }
     decltype(auto) get_str() { return (data.str); }
     decltype(auto) get_arr() { return (data.arr); }
     decltype(auto) get_obj() { return (data.obj); }
     Value() = default;
-    Value(decltype(data.i32) i32) : type(i32_flag) { data.i32 = i32; }
-    Value(decltype(data.u32) u32) : type(u32_flag) { data.u32 = u32; }
-    Value(decltype(data.f32) f32) : type(f32_flag) { data.f32 = f32; }
+    Value(decltype(data.bo) bo) : type(bool_flag) { data.bo = bo; }
     Value(decltype(data.i64) i64) : type(i64_flag) { data.i64 = i64; }
-    Value(decltype(data.u64) u64) : type(u64_flag) { data.u64 = u64; }
     Value(decltype(data.f64) f64) : type(f64_flag) { data.f64 = f64; }
     Value(decltype(data.str) str) : type(str_flag) { data.str = str; }
     Value(decltype(data.arr) arr) : type(arr_flag) { data.arr = arr; }
