@@ -14,16 +14,25 @@ struct Value
     struct String // const string view
     {
         const static size_type P = 19260817;
+        const char *content;
         size_type size;
         size_type hash;
-        const char *content;
-        String() = default; // won't be properly constructed
-        String(const char *src)
+        static size_type hash_code(const char *src, size_type size)
         {
-            content = src;
-            size = 0, hash = 0;
-            for (const char *cur = src; *cur; ++cur, ++size)
-                hash = hash * P + *cur;
+            size_type hash{};
+            for (size_type i = 0; i < size; ++i)
+                hash = hash * P + *src++;
+            return hash;
+        }
+        static String from_cstr(const char *src)
+        {
+            String ret = {.content = src, .size = (size_type)strlen(src)};
+            ret.hash = hash_code(src, ret.size);
+            return ret;
+        }
+        static String from_cstr(const char *src, size_type size)
+        {
+            return {.content = src, .size = size, .hash = hash_code(src, size)};
         }
         bool operator==(String rhs) const
         {
@@ -35,7 +44,7 @@ struct Value
         template <typename OS>
         friend decltype(auto) operator<<(OS &&os, String str)
         {
-            for (int i = 0; i < str.size; ++i)
+            for (size_type i = 0; i < str.size; ++i)
                 os << str.content[i];
             return std::forward<OS>(os);
         }
@@ -84,12 +93,36 @@ struct Value
         arr_flag,
         obj_flag
     } type = null_flag;
-    decltype(auto) get_bool() { return (data.bo); }
-    decltype(auto) get_i64() { return (data.i64); }
-    decltype(auto) get_f64() { return (data.f64); }
-    decltype(auto) get_str() { return (data.str); }
-    decltype(auto) get_arr() { return (data.arr); }
-    decltype(auto) get_obj() { return (data.obj); }
+    decltype(auto) get_bool()
+    {
+        assert(type == bool_flag);
+        return (data.bo);
+    }
+    decltype(auto) get_i64()
+    {
+        assert(type == i64_flag);
+        return (data.i64);
+    }
+    decltype(auto) get_f64()
+    {
+        assert(type == f64_flag);
+        return (data.f64);
+    }
+    decltype(auto) get_str()
+    {
+        assert(type == str_flag);
+        return (data.str);
+    }
+    decltype(auto) get_arr()
+    {
+        assert(type == arr_flag);
+        return (data.arr);
+    }
+    decltype(auto) get_obj()
+    {
+        assert(type == obj_flag);
+        return (data.obj);
+    }
     Value() = default;
     Value(decltype(data.bo) bo) : type(bool_flag) { data.bo = bo; }
     Value(decltype(data.i64) i64) : type(i64_flag) { data.i64 = i64; }
@@ -126,10 +159,10 @@ struct Object
     using pool_pointer = std::shared_ptr<StringPool>;
     std::unordered_map<String, Value, StringHash> dom;
     pool_pointer pool;
-    Value &operator[](String name)
+    Value &operator[](const char *name)
     {
-        auto it = dom.find(name);
-        _MP_ASSERT(it != dom.end());
+        auto it = dom.find(String::from_cstr(name));
+        assert(it != dom.end());
         return it->second;
     }
     bool insert(String name, Value &&val)

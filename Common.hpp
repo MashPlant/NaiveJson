@@ -28,7 +28,6 @@ inline std::string format(const char *fmt, const Args &... args)
     return ret;
 }
 
-#define _MP_ASSERT(cond) assert((cond))
 #define _MP_DISABLE_COPY(class_name)         \
     class_name(const class_name &) = delete; \
     class_name &operator=(const class_name &) = delete;

@@ -4,97 +4,145 @@
 #include "Common.hpp"
 #include "Object.hpp"
 #include "StringPool.hpp"
-#include "Stream.hpp"
+#include "Execption.hpp"
 
 namespace mp
 {
-struct ParserExecption : std::runtime_error
+struct StreamIt
 {
-    template <typename Str>
-    ParserExecption(Str &&str) : std::runtime_error(std::forward<Str>(str)) {}
+    const char *cur, *end;
+    StreamIt() = default;
+    explicit StreamIt(const char *json) : cur(json), end(cur + strlen(json)) {}
+    char operator*()
+    {
+        //assert(cur < end);
+        return *cur;
+    }
+    explicit operator bool() { return cur < end; }
+    operator const char *&() { return cur; }
+    void skip_blanks()
+    {
+        while (cur != end && (*cur == ' ' || *cur == '\n' || *cur == '\t' || *cur == '\r'))
+            ++cur;
+    }
 };
 struct Parser
 {
-    Stream s;
+    StreamIt it;
+    Exception ex;
     Object::pool_pointer pool;
     Object parse(const char *json)
     {
-        s = json;
+        it = StreamIt(json);
+        ex = Exception(json);
         pool.reset(new StringPool);
         Object ret;
         ret.pool = pool;
         parse_object(ret);
+        if (!ex.ok())
+        {
+            std::cerr << ex.msg << std::endl;
+            exit(1);
+        }
         return ret;
+    }
+    // expect and inc
+    void expect(char ch)
+    {
+        if (*it != ch)
+            ex.errorf(it, "expect %c, got %c", ch, *it);
+        ++it;
+    }
+    void expect(const char *str)
+    {
+        const char *where = nullptr;
+        for (auto cur = str; *cur; ++cur)
+        {
+            if (*cur != *it)
+                where = cur;
+            ++it; // do not put expression with other effect in `assert`
+        }
+        if (where)
+            ex.errorf(where, "expect %s, got %c", str, *where);
     }
     void parse_object(Object &obj)
     {
-        s.skip_blanks();
-        s.match('{');
+        it.skip_blanks();
+        expect('{');
         String str;
         Value val;
-        while (true)
+        while (it)
         {
-            s.skip_blanks();
-            if (s.peek() == '}')
+            it.skip_blanks();
+            if (*it == '}')
                 break;
             parse_string(str);
-            s.skip_blanks();
-            s.match(':');
-            s.skip_blanks();
+            it.skip_blanks();
+            expect(':');
+            it.skip_blanks();
             parse_value(val);
             obj.insert(str, std::move(val));
-            s.skip_blanks();
-            if (s.peek() != ',') // optional last comma
+            it.skip_blanks();
+            if (*it != ',') // optional last comma
                 break;
             else
-                s.next();
+                ++it;
         }
-        s.match('}');
+        expect('}');
     }
     void parse_value(Value &val)
     {
-        if (s.peek() == '\"')
+        if (*it == '\"')
         {
-            parse_string(val.get_str());
             val.type = Value::str_flag;
+            parse_string(val.get_str());
         }
-        else if (s.peek() == '{')
+        else if (*it == '{')
         {
             auto obj = std::make_unique<Object>(); // in case an exception is thrown
             obj->pool = pool;
             parse_object(*obj);
-            val.get_obj() = obj.release();
             val.type = Value::obj_flag;
+            val.get_obj() = obj.release();
         }
-        else if (s.peek() == '[')
+        else if (*it == '[')
         {
-            parse_array(val.get_arr());
             val.type = Value::arr_flag;
+            parse_array(val.get_arr());
         }
-        else if (isdigit(s.peek()) || s.peek() == '-')
+        else if (isdigit(*it) || *it == '-')
         {
             parse_number(val);
         }
-        else if (s.peek() == 't' || s.peek() == 'f')
+        else if (*it == 't' || *it == 'f')
         {
-            parse_bool(val.get_bool());
             val.type = Value::bool_flag;
+            parse_bool(val.get_bool());
+        }
+        else if (*it == 'n')
+        {
+            expect("null");
+            val.type = Value::null_flag;
         }
         else
-            throw ParserExecption(format("unexpected char: %c", s.peek()));
+            ex.errorf(it, "unexpected char: %c", *it);
     }
     void parse_number(Value &val)
     {
-        double res = s.get_number();
+        char *tmp;
+        double res = strtod(it, &tmp);
+        if (tmp == it)
+            ex.errorf(it, "wrong number format %c", *it);
+        static_cast<const char *&>(it) = tmp;
         if (res == (int64_t)res)
         {
-            val.get_i64() = (int64_t)res;
             val.type = Value::i64_flag;
+            val.get_i64() = (int64_t)res;
         }
         else
         {
-            val.get_f64() = res;
             val.type = Value::f64_flag;
+            val.get_f64() = res;
         }
     }
     void parse_string(String &str)
@@ -102,56 +150,57 @@ struct Parser
         static StringBuilder builder;
         const static auto escape_map = []() {
             std::array<char, 256> ret;
-            ret[+'\"'] = '\"', ret[+'\\'] = '\\', ret[+'n'] = '\n', ret[+'t'] = '\t', ret[+'r'] = '\r';
+            ret.fill(-1);
+            ret[+'0'] = '\0', ret[+'\"'] = '\"', ret[+'\\'] = '\\', ret[+'n'] = '\n', ret[+'t'] = '\t', ret[+'r'] = '\r';
             return ret;
         }();
         builder.clear();
-        s.match('\"');
-        while (s.peek() != '\"')
+        expect('\"');
+        while (*it != '\"')
         {
-            if (_MP_UNLIKELY(s.peek() == '\\'))
+            if (*it == '\\')
             {
-                s.next();
-                if (!escape_map[s.peek()])
-                    throw ParserExecption(format("unexpected escape character: \\%c", s.peek()));
-                builder.push_back(escape_map[s.next()]);
+                ++it;
+                if (escape_map[*it] == -1)
+                    ex.errorf(it, "unexpected excape char \\%c", *it);
+                builder.push_back(escape_map[*it++]);
             }
             else
-                builder.push_back(s.next());
+                builder.push_back(*it++);
         }
-        s.match('\"');
-        str = builder.to_string(*pool);
+        expect('\"');
+        str = String::from_cstr(builder.to_string(*pool));
     }
     void parse_array(Array &arr)
     {
         arr = Array(16);
         Value val;
-        s.match('[');
+        expect('[');
         while (true)
         {
-            s.skip_blanks();
-            if (s.peek() == ']')
+            it.skip_blanks();
+            if (*it == ']')
                 break;
             parse_value(val);
             arr.push_back(std::move(val));
-            s.skip_blanks();
-            if (s.peek() != ',') // optional last comma
+            it.skip_blanks();
+            if (*it != ',') // optional last comma
                 break;
             else
-                s.next();
+                ++it;
         }
-        s.match(']');
+        expect(']');
     }
     void parse_bool(bool &bo)
     {
-        if (s.peek() == 't')
+        if (*it == 't')
         {
-            s.match('t'), s.match('r'), s.match('u'), s.match('e');
+            expect("true");
             bo = true;
         }
         else
         {
-            s.match('f'), s.match('a'), s.match('l'), s.match('s'), s.match('e');
+            expect("false");
             bo = false;
         }
     }

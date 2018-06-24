@@ -6,7 +6,7 @@ using namespace mp;
 
 int main()
 {
-    // copid from my vscode setting
+    // copied from my vscode setting
     const char *json = R"(
 {
     "workbench.startupEditor": "newUntitledFile",
@@ -17,20 +17,20 @@ int main()
     )";
     cout << json;
     Parser p;
-    try
-    {
+    // try
+    // {
         Object obj = p.parse(json);
         cout << endl;
         cout << obj["workbench.startupEditor"].get_str() << endl;
         cout << obj["C_Cpp.default.cppStandard"].get_str() << endl;
         cout << obj["workbench.iconTheme"].get_str() << endl;
-        cout << obj["workbench.colorTheme"].get_arr()[0].get_f64() << endl;
+        cout << obj["workbench.colorTheme"].get_arr()[0].get_i64() << endl;
         cout << obj["workbench.colorTheme"].get_arr()[1].get_i64() << endl;
         cout << obj["workbench.colorTheme"].get_arr()[2].get_i64() << endl;
         cout << obj["workbench.colorTheme"].get_arr()[3].get_f64() << endl;
-    }
-    catch (std::exception &ex)
-    {
-        cout << ex.what() << endl;
-    }
+    // }
+    // catch (std::exception &ex)
+    // {
+    //     cout << ex.what() << endl;
+    // }
 }
